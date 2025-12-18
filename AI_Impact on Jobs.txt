@@ -1,0 +1,83 @@
+-- Pareto Analysis: Which job titles contribute most to overall automation risk by 2030?
+-- Insight: Focus reskilling efforts on these high-impact roles
+
+WITH job_risk AS (
+    SELECT 
+        Job_Title,
+        round(SUM(Automation_Probability_2030),0) AS total_risk
+    FROM artifical_intelligence
+    GROUP BY Job_Title
+),
+ranked_risk AS (
+    SELECT 
+        Job_Title,
+        total_risk,
+        SUM(total_risk) OVER (ORDER BY total_risk DESC) AS cumulative_risk,
+        SUM(total_risk) OVER () AS grand_total
+    FROM job_risk
+),
+pareto AS (
+    SELECT 
+        Job_Title,
+        total_risk,
+        round((cumulative_risk / grand_total) * 100,0) AS cumulative_pct
+    FROM ranked_risk
+)
+SELECT * 
+FROM pareto
+WHERE cumulative_pct <= 80  -- Or analyze full to see cutoff.
+ORDER BY cumulative_pct;
+
+2.-- Cohort Analysis: How do salary and skill levels differ across Education + AI Risk groups?
+-- Key Question: Does higher education actually protect from automation risk in this data?
+
+SELECT 
+    Education_Level,
+    Risk_Category,
+    COUNT(*) AS cohort_size,
+    ROUND(AVG(Average_Salary), 0) AS avg_salary,
+    ROUND(AVG(Average_Salary) - LAG(AVG(Average_Salary)) OVER (ORDER BY AVG(Average_Salary) DESC), 0) AS salary_diff_vs_next,
+    
+    ROUND(
+        AVG(Skill_1 + Skill_2 + Skill_3 + Skill_4 + Skill_5 + 
+            Skill_6 + Skill_7 + Skill_8 + Skill_9 + Skill_10), 3
+    ) AS avg_total_skill,
+    
+    ROUND(STDDEV(Skill_1), 3) AS skill1_variation,
+    ROUND(STDDEV(Skill_5), 3) AS skill5_variation
+     
+FROM artifical_intelligence
+GROUP BY Education_Level, Risk_Category
+ORDER BY avg_salary DESC;
+
+3.Risk vs Expected "Value"
+
+SELECT 
+    Job_Title,
+    COUNT(*) AS count,
+    ROUND(AVG(Average_Salary), 0) AS avg_salary,
+    ROUND(AVG(Automation_Probability_2030), 3) AS avg_risk,
+    ROUND(AVG(Average_Salary) / (AVG(Automation_Probability_2030) + 0.01), 0) AS value_score  -- higher = better (salary per unit risk)
+FROM artificial_intelligence
+GROUP BY Job_Title
+ORDER BY value_score DESC
+LIMIT 10;
+
+4.Correlation between Salary and Automation Risk
+SELECT 
+    CORR(Average_Salary, Automation_Probability_2030) AS salary_risk_correlation,
+    CORR(Average_Salary, AI_Exposure_Index) AS salary_exposure_corr,
+    CORR(Average_Salary, Tech_Growth_Factor) AS salary_growth_corr
+FROM artificial_intelligence;
+
+5.Best Value" Jobs
+SELECT 
+    Job_Title,
+    COUNT(*) AS count,
+    ROUND(AVG(Average_Salary), 0) AS avg_salary,
+    ROUND(AVG(Automation_Probability_2030), 3) AS avg_risk,
+    ROUND(AVG(Average_Salary) / NULLIF(AVG(Automation_Probability_2030) + 0.01, 0), 0) AS value_score  -- Higher = better (salary per unit risk)
+FROM artificial_intelligence
+GROUP BY Job_Title
+ORDER BY value_score DESC
+LIMIT 10;
